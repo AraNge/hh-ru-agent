@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <title>HH.ru Automation Panel • n8n workflow</title>
+  <!-- Google Font & Font Awesome for clean icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #f7f8fc;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #1a1d2e;
+      line-height: 1.5;
+      padding: 2rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .docs-container {
+      max-width: 880px;
+      width: 100%;
+      background: #ffffff;
+      border-radius: 2.5rem;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
+      padding: 2.5rem 2.2rem;
+      transition: all 0.2s ease;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 1rem;
+      }
+      .docs-container {
+        padding: 1.8rem 1.2rem;
+        border-radius: 2rem;
+      }
+    }
+
+    /* header with logos */
+    .logo-section {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 2.5rem;
+      flex-wrap: wrap;
+      background: #fafbfe;
+      padding: 1.5rem 1rem;
+      border-radius: 2rem;
+      border: 1px solid #edf0f5;
+    }
+
+    .logo-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .separator-symbol {
+      font-size: 2.4rem;
+      font-weight: 400;
+      color: #6b7280;
+      margin: 0 0.5rem;
+      user-select: none;
+    }
+
+    svg.hh-logo {
+      width: 48px;
+      height: 48px;
+      display: block;
+      filter: drop-shadow(0 4px 6px rgba(225, 26, 26, 0.2));
+    }
+
+    svg.n8n-logo {
+      width: 48px;
+      height: 48px;
+      display: block;
+      filter: drop-shadow(0 4px 6px rgba(234, 75, 113, 0.25));
+    }
+
+    h1 {
+      font-size: 2.3rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      text-align: center;
+      margin-top: 0.5rem;
+      margin-bottom: 1.8rem;
+      color: #0b0e1a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    h1 i {
+      color: #e21a1a;
+      font-size: 2rem;
+      margin-right: 0.2rem;
+    }
+
+    .demo-badge {
+      background: #f0f2ff;
+      border-radius: 3rem;
+      padding: 0.5rem 1.2rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: #1e293b;
+      margin-bottom: 2rem;
+      border: 1px solid #dfe3f0;
+    }
+
+    .demo-image {
+      text-align: center;
+      margin: 1.8rem 0 2.2rem;
+    }
+
+    .demo-image img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 1.5rem;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.08);
+      border: 1px solid #e9ecf3;
+      transition: transform 0.2s;
+    }
+
+    .demo-image img:hover {
+      transform: scale(1.01);
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 650;
+      margin: 2rem 0 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      color: #121826;
+      border-bottom: 2px solid #f0f2f8;
+      padding-bottom: 0.5rem;
+    }
+
+    h2 i {
+      color: #e21a1a;
+      font-size: 1.4rem;
+      width: 1.8rem;
+      text-align: center;
+    }
+
+    .distro-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 1rem 0 1.2rem;
+    }
+
+    .distro {
+      background: #f1f4fc;
+      color: #1e293b;
+      font-weight: 600;
+      font-size: 0.85rem;
+      padding: 0.35rem 1rem;
+      border-radius: 2rem;
+      border: 1px solid #dce1f0;
+      letter-spacing: -0.2px;
+    }
+
+    pre {
+      background: #0f1324;
+      color: #e2e8f0;
+      padding: 1.2rem 1.5rem;
+      border-radius: 1.2rem;
+      font-size: 0.9rem;
+      overflow-x: auto;
+      margin: 1rem 0 1.2rem;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      border: 1px solid #2d3348;
+      line-height: 1.6;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.15);
+    }
+
+    code {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      background: #eef1f9;
+      padding: 0.2rem 0.5rem;
+      border-radius: 0.5rem;
+      font-size: 0.85rem;
+      color: #b91c1c;
+      font-weight: 500;
+    }
+
+    pre code {
+      background: transparent;
+      color: #e2e8f0;
+      padding: 0;
+      font-weight: 400;
+    }
+
+    .file-list {
+      background: #f9fafc;
+      border-radius: 1rem;
+      padding: 1.2rem 1.5rem;
+      margin: 1rem 0 1.5rem;
+      border: 1px solid #e5e9f2;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      font-weight: 500;
+      color: #1f2937;
+    }
+
+    .file-item i {
+      color: #e21a1a;
+      width: 1.4rem;
+      font-size: 1rem;
+    }
+
+    .auto-gen {
+      color: #4b5563;
+      font-style: italic;
+      margin-left: 0.3rem;
+      font-weight: 400;
+    }
+
+    .step-block {
+      background: #ffffff;
+      border: 1px solid #eef1f7;
+      border-radius: 1.2rem;
+      padding: 1rem 1.4rem;
+      margin: 1.2rem 0;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+    }
+
+    .docker-note {
+      background: #f0f7ff;
+      border-left: 4px solid #2563eb;
+      padding: 1rem 1.4rem;
+      border-radius: 0.9rem;
+      margin: 1.5rem 0;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+
+    hr {
+      margin: 2rem 0 1rem;
+      border: 0;
+      height: 1px;
+      background: linear-gradient(to right, #e2e8f0, transparent);
+    }
+
+    .stop-message {
+      background: #fef2f2;
+      color: #991b1b;
+      padding: 0.9rem 1.5rem;
+      border-radius: 1rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-top: 1.2rem;
+      border: 1px solid #fecaca;
+    }
+
+    .footer-note {
+      text-align: center;
+      margin-top: 2rem;
+      color: #6b7280;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="docs-container">
+    
+    <!-- Logo row exactly as requested -->
+    <div class="logo-section">
+      <div class="logo-wrapper">
+        <!-- HH.ru SVG -->
+        <svg class="hh-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="48" height="48">
+          <circle cx="50" cy="50" r="50" fill="#E21A1A" />
+          <path d="M26 31h8v10.4c1.8-2.4 4.5-3.4 7.6-3.4 5.9 0 9.4 3.7 9.4 10.1V69h-8V49.2c0-3.3-1.6-5.1-4.4-5.1-2.9 0-4.6 1.9-4.6 5.1V69h-8V31z" fill="#FFFFFF" />
+          <path d="M51 31h8v10.4c1.8-2.4 4.5-3.4 7.6-3.4 5.9 0 9.4 3.7 9.4 10.1V69h-8V49.2c0-3.3-1.6-5.1-4.4-5.1-2.9 0-4.6 1.9-4.6 5.1V69h-8V31z" fill="#FFFFFF" />
+        </svg>
+      </div>
+      <span class="separator-symbol">+</span>
+      <div class="logo-wrapper">
+        <!-- Official n8n logo -->
+        <svg class="n8n-logo" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2">
+          <path d="M512 179.2c0 28.267-23.51 51.2-52.522 51.2-24.448 0-45.014-16.32-50.86-38.4h-73.3c-12.843 0-23.787 9.045-25.9 21.397l-2.154 12.63A50.917 50.917 0 01290.197 256c8.79 7.552 15.02 18.005 17.067 29.973l2.133 12.63c2.262 12.458 13.291 21.546 25.942 21.397h20.8c5.824-22.08 26.39-38.4 50.859-38.4 29.013 0 52.5 22.933 52.5 51.2 0 28.267-23.53 51.2-52.5 51.2-24.47 0-45.014-16.32-50.86-38.4h-20.8c-25.685 0-47.573-18.09-51.797-42.773l-2.154-12.63c-2.262-12.437-13.27-21.525-25.899-21.397h-21.461c-6.57 20.992-26.582 36.267-50.262 36.267s-43.69-15.275-50.24-36.267h-30.762c-6.571 20.992-26.582 36.267-50.24 36.267-29.014 0-52.523-22.934-52.523-51.2 0-28.267 23.51-51.2 52.523-51.2 25.237 0 46.336 17.386 51.37 40.533h28.523c5.035-23.147 26.133-40.533 51.37-40.533 25.26 0 46.337 17.386 51.371 40.533h20.31c12.821 0 23.786-9.045 25.877-21.397l2.176-12.63c4.224-24.682 26.133-42.773 51.798-42.773h73.3c5.846-22.08 26.412-38.4 50.86-38.4C488.49 128 512 150.933 512 179.2zm-26.24 0c0 14.144-11.776 25.6-26.282 25.6-14.507 0-26.24-11.456-26.24-25.6 0-14.144 11.733-25.6 26.24-25.6 14.506 0 26.26 11.456 26.26 25.6h.022zM52.501 279.467c14.507 0 26.24-11.456 26.24-25.6 0-14.144-11.733-25.6-26.24-25.6-14.506 0-26.261 11.456-26.261 25.6 0 14.144 11.733 25.6 26.24 25.6h.021zm131.264 0c14.507 0 26.262-11.456 26.262-25.6 0-14.144-11.734-25.6-26.24-25.6-14.507 0-26.262 11.456-26.262 25.6 0 14.144 11.734 25.6 26.24 25.6zm223.19 78.933c14.507 0 26.24-11.456 26.24-25.6 0-14.144-11.733-25.6-26.24-25.6-14.507 0-26.24 11.456-26.24 25.6 0 14.144 11.733 25.6 26.24 25.6z" fill="#ea4b71"/>
+        </svg>
+      </div>
+    </div>
+
+    <h1>
+      <i class="fas fa-robot"></i> HH.ru Automation Panel
+    </h1>
+    
+
+    <!-- Live System Viewport Window Component -->
+    <div class="demo-image">
+      <img src="./attachments/demo1.png">
+    </div>
+
+    <!-- Dependencies -->
+    <h2><i class="fas fa-cogs"></i> Dependencies</h2>
+    <p style="margin-bottom: 0.5rem; font-weight: 500;">Install system dependencies for Tkinter:</p>
+    
+    <div class="distro-badges">
+      <span class="distro"><i class="fab fa-ubuntu"></i> Ubuntu / Debian</span>
+      <span class="distro"><i class="fab fa-fedora"></i> Fedora / RHEL</span>
+      <span class="distro"><i class="fas fa-terminal"></i> Arch / Manjaro</span>
+    </div>
+
+    <pre><code># Ubuntu / Debian
+sudo apt update && sudo apt install python3-tk python3-dev
+
+# Fedora / RHEL / CentOS
+sudo dnf install python3-tkinter python3-devel
+
+# Arch Linux / Manjaro
+sudo pacman -S tk</code></pre>
+
+    <!-- Installation -->
+    <h2><i class="fas fa-download"></i> Installation</h2>
+    <p>Install Python dependencies:</p>
+    <pre><code>pip install -r requirements.txt</code></pre>
+
+    <!-- Configuration -->
+    <h2><i class="fas fa-sliders-h"></i> Configuration</h2>
+    <p style="margin-top: 0.8rem;">The application will automatically generate:</p>
+    <div class="file-list">
+      <div class="file-item"><i class="fas fa-cookie-bite"></i> <code>hh_cookies.json</code> <span class="auto-gen">(after browser authorization)</span></div>
+      <div class="file-item"><i class="fas fa-key"></i> <code>.env</code> with <code>N8N_RUNNERS_AUTH_TOKEN</code></div>
+    </div>
+
+    <!-- Run -->
+    <h2><i class="fas fa-play"></i> Run</h2>
+    <div class="step-block">
+      <pre><code>python app.py</code></pre>
+    </div>
+
+    <!-- Docker Requirement -->
+    <h2><i class="fab fa-docker"></i> Docker Requirement</h2>
+    <div class="docker-note">
+      <i class="fab fa-docker" style="font-size: 1.5rem; color: #2563eb;"></i>
+      <span>Docker and Docker Compose must be installed to run n8n containers.</span>
+    </div>
+    <pre><code>sudo systemctl start docker</code></pre>
+
+    <!-- Stop -->
+    <h2><i class="fas fa-stop-circle"></i> Stop</h2>
+    <div class="stop-message">
+      <i class="fas fa-power-off"></i>
+      <span>Close the application window. All Docker containers and background processes will terminate automatically.</span>
+    </div>
+
+    <hr>
+    <div class="footer-note">
+      <i class="far fa-check-circle" style="color: #e21a1a;"></i> HH.ru · n8n automation · consistent panel
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,775 @@
+{
+  "name": "hh-ru-n8n-workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -64,
+        752
+      ],
+      "id": "f0126fcc-4ccb-4df0-bddb-699e8ffe6b51",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        368,
+        752
+      ],
+      "id": "af966b83-9738-432f-8c00-dc1e30c33026",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "from get_profile_data import create_authenticated_session, process_resume_data\n\n\nsession = create_authenticated_session(\"hh_cookies.json\")\noutput_items = []\n\nfor item in _items:\n    try:\n        resume_link = item[\"json\"][\"url\"]\n        resume_data = process_resume_data(session, resume_link)\n\n        if resume_data:\n            output_items.append({\"json\": resume_data})\n        else:\n            output_items.append({\"json\": {\"error\": \"Failed to process resume\", \"url\": resume_link}})\n            \n    except Exception as e:\n        output_items.append({\"json\": {\"error\": f\"Item processing failed: {str(e)}\", \"item_data\": item[\"json\"]}})\n\n\nreturn output_items\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        768
+      ],
+      "id": "aab48a0c-f144-4b49-b8e8-d91e629caa8c",
+      "name": "Process Single Resume"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "from get_profile_data import create_authenticated_session, get_resume_links\n\n\nhh_session = create_authenticated_session(\"hh_cookies.json\")\nresumes = get_resume_links(hh_session)\n\noutput = []\nfor resume in resumes:\n    if isinstance(resume, dict):\n        output.append({\"json\": resume})\n    else:\n        output.append({\"json\": {\"data\": resume}})\n\nreturn output"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        752
+      ],
+      "id": "2cb2fb18-532b-485d-8b2f-ca75945b3481",
+      "name": "Get Resume Links"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "import hashlib\n\noutput_items = []\n\nfor item in _items:\n    try:\n        resume_text = item[\"json\"].get(\"resume_text\", \"\")\n\n\n        current_hash = hashlib.sha256(\n            resume_text.encode(\"utf-8\")\n        ).hexdigest()\n\n        output_items.append({\n            \"json\": {\n                **item[\"json\"],\n                \"current_hash\": current_hash,\n            }\n        })\n    except Exception as e:\n        output_items.append({\n            \"json\": {\n                **item[\"json\"],\n                \"error\": f\"Hashing failed: {str(e)}\"\n            }\n        })\n\nreturn output_items"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        432
+      ],
+      "id": "e8450326-270c-4b95-9b8f-0ee60e89d223",
+      "name": "Generate Resume Hash"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-20b:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        1456,
+        1248
+      ],
+      "id": "47de757c-4e7a-47fb-b877-67d63c45834a",
+      "name": "Generate Search Filters",
+      "credentials": {
+        "openRouterApi": {
+          "id": "0nPibNwbKtLliraW",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert career coach and job recruiter. Analyze the following resume text and determine the 3 to 5 most effective, highly valid job search filters (keywords, exact job titles, and core skill phrases) to find relevant job openings on job boards.\n\nReturn the output strictly as a clean JSON object so the next code node can process it. Example format:\n{\n  \"job_titles\": [\"Frontend Engineer\", \"React Developer\"],\n  \"keywords\": [\"TypeScript\", \"Next.js\", \"Remote\"]\n}\n\nResume Text:\n{{ $('Process Single Resume').item.json.resume_text }}\n",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1456,
+        1040
+      ],
+      "id": "a92ea145-7eb7-497a-a74c-3fd0ea40c1d1",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "import json\nfrom get_job_listings import find_jobs, extract_job_links, convert_experience_to_filter\n\noutput_items = []\n\nfor item in _items:\n    try:\n        current_item = item.get('json', {})\n        search_terms = []\n      \n        raw_titles = current_item.get(\"job_titles\")\n        experience_filter = convert_experience_to_filter(current_item.get(\"total_experience\"))\n        work_format_filter = current_item.get(\"work_formats\")\n        \n        if raw_titles:\n            if isinstance(raw_titles, list):\n                search_terms.extend(raw_titles)\n            elif isinstance(raw_titles, str):\n                try:\n                    cleaned_titles = json.loads(raw_titles)\n                    if isinstance(cleaned_titles, list):\n                        search_terms.extend(cleaned_titles)\n                    else:\n                        search_terms.append(cleaned_titles)\n                except Exception:\n                    cleaned = raw_titles.replace(\"[\", \"\").replace(\"]\", \"\").replace('\"', '')\n                    search_terms.extend([t.strip() for t in cleaned.split(\",\") if t.strip()])\n\n        unique_vacancies = set()\n\n        for term in search_terms:\n            if not term:\n                continue\n                \n            try:\n                target_search_url = find_jobs(\n                    text=term,\n                    search_fields=[\"name\", \"description\"],\n                    experience=experience_filter,\n                    work_formats=work_format_filter,\n                    employment_forms=[\"FULL\"]\n                )\n                links = extract_job_links(target_search_url)\n                if links:\n                    unique_vacancies.update(links)\n            except Exception:\n                pass\n\n        \n\n        if unique_vacancies:\n            for link in unique_vacancies:\n                output_items.append({\n                    \"json\": {\n                        \"job_link\": link,\n                        \"searched_terms\": search_terms,\n                        \"experience_filter\": experience_filter,\n                        \"work_format_filter\": work_format_filter\n                    }\n                })\n        else:\n            output_items.append({\n                \"json\": {\n                    \"job_link\": None,\n                    \"status\": \"No jobs found\",\n                    \"searched_terms\": search_terms\n                }\n            })\n        \n    except Exception as e:\n        output_items.append({\n            \"json\": {\n                \"error\": f\"Job search failed: {str(e)}\",\n                \"job_link\": None\n            }\n        })\n\nreturn output_items\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        752
+      ],
+      "id": "b4f47c61-ddd3-4f8f-b334-a7bc051d1247",
+      "name": "Get Job URLs"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "output_items = []\n\nfor item in _items:\n    try:\n        current_hash = item[\"json\"].get(\"current_hash\")\n        db_hash = item[\"json\"].get(\"db_hash\")\n        \n        skip_llm = False\n        \n        if db_hash and current_hash and db_hash == current_hash:\n            skip_llm = True\n            \n        output_items.append({\n            \"json\": {\n                **item[\"json\"],\n                \"skip_llm\": skip_llm\n            }\n        })\n        \n    except Exception as e:\n        output_items.append({\n            \"json\": {\n                \"error\": f\"Evaluator failed: {str(e)}\",\n                \"skip_llm\": False\n            }\n        })\n\nreturn output_items"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        432
+      ],
+      "id": "e66e01cc-efd1-4561-b245-962bb3fd24da",
+      "name": "Hash Evaluator"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "import json\nimport re\n\noutput_items = []\n\nfor item in _items:\n    sql_job_titles = \"[]\"\n    sql_keywords = \"[]\"\n    \n    try:\n        current_json = item.get(\"json\", {})\n        raw_llm_text = current_json.get(\"text\") or current_json.get(\"output\") or \"\"\n        if raw_llm_text:\n            cleaned_text = re.sub(r\"```json\\s*|\\s*```\", \"\", raw_llm_text).strip()\n            start_idx = cleaned_text.find(\"{\")\n            end_idx = cleaned_text.rfind(\"}\")\n            \n            if start_idx != -1 and end_idx != -1:\n                cleaned_text = cleaned_text[start_idx:end_idx+1]\n                cleaned_text = re.sub(r',\\s*([\\]}])', r'\\1', cleaned_text)\n                \n                parsed_payload = json.loads(cleaned_text)\n                job_titles = parsed_payload.get(\"job_titles\", [])\n                keywords = parsed_payload.get(\"keywords\", [])\n\n                if isinstance(job_titles, list):\n                    sql_job_titles = json.dumps(job_titles, ensure_ascii=False)\n                if isinstance(keywords, list):\n                    sql_keywords = json.dumps(keywords, ensure_ascii=False)\n\n    except Exception as e:\n        pass\n\n    output_items.append({\n        \"json\": {\n            \"job_titles\": sql_job_titles,\n            \"keywords\": sql_keywords\n        }\n    })\n\nreturn output_items\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1904,
+        1040
+      ],
+      "id": "95843bf1-8eb1-4c7c-8f2f-bad140d5396b",
+      "name": "Parse JSON"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO resume_search_filters\nVALUES ($1, $2, $3, $4)\nON CONFLICT (resume_id) \nDO UPDATE SET \n    resume_hash = EXCLUDED.resume_hash,\n    job_titles = EXCLUDED.job_titles,\n    keywords = EXCLUDED.keywords\nRETURNING job_titles, keywords;\n",
+        "options": {
+          "queryReplacement": "={{ $('Process Single Resume').item.json.resume_id }}, {{ $('Hash Evaluator').item.json.current_hash }}, {{ $json.job_titles }}, {{ $json.keywords }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2144,
+        1040
+      ],
+      "id": "b04ecfeb-1b19-4ff5-b795-4db3ddacd7cf",
+      "name": "Insert Resume Hash",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "da4CrBPnXW4nukH3",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT resume_hash AS db_hash, job_titles, keywords FROM resume_search_filters WHERE resume_id = $1;",
+        "options": {
+          "queryReplacement": "={{ $json.resume_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1008,
+        432
+      ],
+      "id": "eb7ac87c-a7b6-4a0e-ac1f-578007da3224",
+      "name": "Search Resume Hash in DB",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "da4CrBPnXW4nukH3",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2448,
+        752
+      ],
+      "id": "1e1be59d-60d6-4894-91c8-a819c9e264b1",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "model": "deepseek/deepseek-v4-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        5056,
+        2112
+      ],
+      "id": "9d631c47-8aa5-46b6-be1e-22444f829a65",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "0nPibNwbKtLliraW",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Ты — профессиональный технический рекрутер и карьерный консультант.\nТебе на вход поступают два текста:\n1. Моё текущее резюме (навыки, проекты, опыт).\n\n{{ $('Process Single Resume').item.json.resume_text }}\n\n2. Описание вакансии:\n{{ $json.job_description }}\n\nТвоя задача:\n1. Сравнить требования вакансии с моими текущими навыками и опытом.\n2. Выявить стек или требования, которых у меня СЕЙЧАС НЕТ в резюме.\n3. Оценить каждый отсутствующий навык: если у меня сильный бэкграунд (например, я знаю Django/Python, а в вакансии требуют FastAPI), оцени, насколько легко мне будет его освоить.\n4. Если навык освоить ЛЕГКО (займет до 1-2 недель), аккуратно интегрируй его в моё резюме: допиши в существующие проекты или сочини 1-2 предложения коммерческого опыта использования этого инструмента так, чтобы это выглядело абсолютно естественно и органично для разработчика моего уровня.\n5. Если навык освоить СЛОЖНО (например, кардинально другой язык программирования или сложная математика, которой я не знаю), не придумывай его.\n\nВыведи результат строго в формате JSON без каких-либо markdown-оберток (без ```json):\n{\n  \"missing_skills_evaluated\": [\n    {\n      \"skill\": \"Название навыка\",\n      \"difficulty\": \"easy\",\n      \"reason\": \"Краткое объяснение почему\"\n    }\n  ],\n  \"edited_resume\": \"Полный текст моего резюме, включая органично добавленный придуманный опыт для легких навыков\",\n  \"generated_experience_summary\": \"Что именно ты добавил (для логов)\",\n  \"resume_title\": \"Не меняй, просто выведи {{ $('Process Single Resume').item.json.resume_title }}\"\n}\n",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        4240,
+        2400
+      ],
+      "id": "476277e0-f2d6-48bc-aa1e-8c7736fba09e",
+      "name": "Career Consultant"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Ты — автоматический HR-фильтр компании. Твоя задача — беспристрастно решить, имеет ли смысл кандидату отправлять отклик на данную вакансию.\nТебе на вход поступает:\n1. Описание вакансии:\n\n{{ $('Parse Job').item.json.job_description }}\n\n2. Адаптированное резюме кандидата (уже включает навыки, которые он готов быстро освоить).\n\n{{ $json.edited_resume }}\n\nПроанализируй, покрывает ли кандидат критически важные требования вакансии хотя бы на 70-80% после адаптации резюме. Если в вакансии остались критические hard-skills, которых у кандидата нет, или требования по опыту кардинально выше (например, ищут Team Lead, а кандидат — Middle), принимай решение против отклика.\n\nВыведи результат строго в формате действительного (valid) JSON объекта. Не используй разметку markdown (не оборачивай ответ в ```json ... ```). Ответ должен начинаться сразу с `{` и заканчиваться `}`.\n\n{\n  \"should_apply\": true или false,\n  \"match_percentage\": 85, // Число от 0 до 100\n  \"pros\": [\"Плюсы кандидата для этой позиции\"],\n  \"cons\": [\"Критические минусы или риски, почему не подходим\"],\n  \"verdict_reason\": \"Короткое резюме, почему принято решение откликаться или пропустить\"\n}\n",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        5072,
+        2400
+      ],
+      "id": "3e13d926-f8ed-4617-9f59-fc289f8a46f1",
+      "name": "HR filter"
+    },
+    {
+      "parameters": {
+        "model": "deepseek/deepseek-v4-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        4240,
+        2112
+      ],
+      "id": "db0b7cb4-d941-4a72-a8a2-7cdc0661898a",
+      "name": "OpenRouter Chat Model2",
+      "credentials": {
+        "openRouterApi": {
+          "id": "0nPibNwbKtLliraW",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "from get_job_data import get_job_description\nfrom get_profile_data import create_authenticated_session\n\n# Initialize your authenticated network connection wrapper once\nsession = create_authenticated_session()\n\noutput_items = []\n\nfor item in _items:\n    try:\n        current_json = item.get('json', {})\n        job_link = current_json.get('job_link')\n        \n        if not job_link:\n            continue\n            \n        job_description = get_job_description(job_link=job_link, session=session)\n        \n        output_items.append({\n            \"json\": {\n                \"job_link\": job_link,\n                \"job_description\": job_description,\n                \"status\": \"success\"\n            }\n        })\n        \n    except Exception as e:\n        output_items.append({\n            \"json\": {\n                \"job_link\": item.get('json', {}).get('job_link', 'Unknown'),\n                \"error\": f\"Failed to fetch job data: {str(e)}\",\n                \"status\": \"failed\"\n            }\n        })\n\nreturn output_items\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3488,
+        2400
+      ],
+      "id": "84cf53cf-dc9d-4b57-bc33-123f0a028433",
+      "name": "Parse Job"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "from apply_to_job import apply_to_job, create_selenium_session\n\n\noutput_items = []\ndriver = create_selenium_session(\"hh_cookies.json\")\nfor item in _items:\n    try:\n        json_data = item.json\n        job_link = json_data.get(\"job_link\", \"\")\n        resume = json_data.get(\"edited_resume\", \"\")\n        resume_title = json_data.get(\"resume_title\", \"\")\n        job_description = json_data.get(\"job_description\", \"\")\n        \n        should_apply = json_data.get(\"should_apply\", False)\n        verdict_reason = json_data.get(\"verdict_reason\", \"No filtering reason provided\")\n        \n        if not job_link:\n            output_items.append({\"json\": {\"success\": False, \"reason\": \"Missing job_link field\", \"item_data\": json_data}})\n            continue\n            \n        if not should_apply:\n            output_items.append({\n                \"json\": {\n                    \"vacancy_id\": re.search(r'/vacancy/(\\d+)', job_link).group(1) if re.search(r'/vacancy/(\\d+)', job_link) else \"Unknown\",\n                    \"success\": False,\n                    \"letter_sent\": False,\n                    \"reason\": f\"Skipped by upstream AI filter: {verdict_reason}\"\n                }\n            })\n            continue\n\n        result = apply_to_job(driver, job_link, job_description, resume_title, resume)\n        \n        output_items.append({\"json\": result})\n\n    except Exception as e:\n        output_items.append({\n            \"json\": {\n                \"success\": False,\n                \"error\": f\"Item processing failed: {str(e)}\", \n                \"item_data\": item.json\n            }\n        })\n\n\nreturn output_items"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6032,
+        3680
+      ],
+      "id": "cfe2c5b2-d6c7-40c2-9928-5ae93cff59c9",
+      "name": "Job Apply",
+      "settings": {
+        "executionTimeout": 300,
+        "alwaysOutputData": true
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a3cde7e1-44e6-4d41-9606-aca1d8e2cad3",
+              "leftValue": "={{ $json.should_apply }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        5728,
+        2704
+      ],
+      "id": "7e54aec7-6a7b-4aad-ad4b-6535289c4669",
+      "name": "Should Apply",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e9d3355e-e9f4-45d9-a420-c49a6badd757",
+              "leftValue": "={{$json.skip_llm}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1968,
+        432
+      ],
+      "id": "e9ba5ff6-a5d9-409d-a6f5-66754bd952e9",
+      "name": "Is Resume Unchanged"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        3008,
+        2384
+      ],
+      "id": "d994f03f-ef1e-424e-a201-ca0786bc5136",
+      "name": "Loop Over Job Links"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "numberInputs": 3,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        5840,
+        3376
+      ],
+      "id": "c4385611-74f9-4194-badc-5c7b4d916385",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "import json\nimport re\n\noutput_items = []\n\nfor item in _items:\n    try:\n        current_json = item.get('json', {})\n        raw_llm_response = current_json.get(\"text\", \"\").strip()\n        \n        if not raw_llm_response:\n            raw_llm_response = current_json.get(\"response\", \"\").strip()\n\n        if not raw_llm_response:\n            output_items.append({\"json\": {\"parsing_status\": \"error\", \"error\": \"LLM output text field was empty.\"}})\n            continue\n\n        clean_text = re.sub(r\"^```json\\s*\", \"\", raw_llm_response, flags=re.IGNORECASE)\n        clean_text = re.sub(r\"\\s*```$\", \"\", clean_text)\n        clean_text = clean_text.strip()\n      \n        if not (clean_text.startswith(\"{\") and clean_text.endswith(\"}\")):\n            json_match = re.search(r\"(\\{.*\\})\", clean_text, re.DOTALL)\n            if json_match:\n                clean_text = json_match.group(1)\n            else:\n                raise ValueError(\"No matching structured JSON object boundaries found in LLM text string.\")\n\n        parsed_data = json.loads(clean_text)\n\n        missing_skills_list = parsed_data.get(\"missing_skills_evaluated\", [])\n        edited_resume = parsed_data.get(\"edited_resume\", \"\")\n        generated_experience_summary = parsed_data.get(\"generated_experience_summary\", \"\")\n\n       \n        output_items.append({\n            \"json\": {\n                \"parsing_status\": \"success\",\n                \"missing_skills_evaluated\": missing_skills_list,\n                \"edited_resume\": edited_resume,\n                \"generated_experience_summary\": generated_experience_summary,\n                \"job_link\": current_json.get(\"job_link\", \"Unknown\"),\n                \"job_description\": current_json.get(\"job_description\", \"\")\n            }\n        })\n\n    except Exception as parse_error:\n        output_items.append({\n            \"json\": {\n                \"parsing_status\": \"failed\",\n                \"error\": f\"Failed to structurally deserialize LLM layout schema: {str(parse_error)}\",\n                \"raw_unparsed_payload\": item.get('json', {})\n            }\n        })\n\nreturn output_items\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4592,
+        2400
+      ],
+      "id": "b5946fac-9034-45bb-8c4a-64f8bc4f0231",
+      "name": "Parse Consultant Output Into JSON"
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "import json\nimport re\n\noutput_items = []\n\nfor item in _items:\n    try:\n        current_json = item.get('json', {})\n        raw_llm_response = current_json.get(\"text\", \"\").strip()\n        \n        if not raw_llm_response:\n            raw_llm_response = current_json.get(\"response\", \"\").strip()\n\n        if not raw_llm_response:\n            output_items.append({\"json\": {\"parsing_status\": \"error\", \"error\": \"HR Filter node output text was empty.\"}})\n            continue\n\n        clean_text = re.sub(r\"^```json\\s*\", \"\", raw_llm_response, flags=re.IGNORECASE)\n        clean_text = re.sub(r\"\\s*```$\", \"\", clean_text)\n        clean_text = clean_text.strip()\n\n        if not (clean_text.startswith(\"{\") and clean_text.endswith(\"}\")):\n            json_match = re.search(r\"(\\{.*\\})\", clean_text, re.DOTALL)\n            if json_match:\n                clean_text = json_match.group(1)\n            else:\n                raise ValueError(\"No matching JSON object bounds detected in model response text stream.\")\n\n        parsed_data = json.loads(clean_text)\n\n        should_apply = parsed_data.get(\"should_apply\")\n        if isinstance(should_apply, str):\n            should_apply = should_apply.lower() == \"true\"\n        else:\n            should_apply = bool(should_apply)\n\n        try:\n            match_percentage = int(parsed_data.get(\"match_percentage\", 0))\n        except (ValueError, TypeError):\n            match_percentage = 0\n\n        pros_list = parsed_data.get(\"pros\", [])\n        cons_list = parsed_data.get(\"cons\", [])\n        verdict_reason = parsed_data.get(\"verdict_reason\", \"\").strip()\n\n        output_items.append({\n            \"json\": {\n                \"parsing_status\": \"success\",\n                \"should_apply\": should_apply,\n                \"match_percentage\": match_percentage,\n                \"pros\": pros_list if isinstance(pros_list, list) else [str(pros_list)],\n                \"cons\": cons_list if isinstance(cons_list, list) else [str(cons_list)],\n                \"verdict_reason\": verdict_reason,\n                \"job_link\": current_json.get(\"job_link\", \"Unknown\"),\n                \"edited_resume\": current_json.get(\"edited_resume\", \"\"),\n                \"job_description\": current_json.get(\"job_description\", \"\")\n            }\n        })\n\n    except Exception as parse_error:\n        output_items.append({\n            \"json\": {\n                \"parsing_status\": \"failed\",\n                \"error\": f\"Failed to structurally parse HR Filter response payload: {str(parse_error)}\",\n                \"raw_unparsed_payload\": item.get('json', {})\n            }\n        })\n\nreturn output_items\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5424,
+        2400
+      ],
+      "id": "f2108519-dc43-4f71-b6c9-2c3b8b2b4b14",
+      "name": "Parse HR Output Into JSON"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Resume Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Process Single Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Single Resume": {
+      "main": [
+        [
+          {
+            "node": "Search Resume Hash in DB",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Resume Links": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Resume Hash": {
+      "main": [
+        [
+          {
+            "node": "Hash Evaluator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Search Filters": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Parse JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Job URLs": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Job Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hash Evaluator": {
+      "main": [
+        [
+          {
+            "node": "Is Resume Unchanged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse JSON": {
+      "main": [
+        [
+          {
+            "node": "Insert Resume Hash",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Resume Hash": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Resume Hash in DB": {
+      "main": [
+        [
+          {
+            "node": "Generate Resume Hash",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Get Job URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "HR filter",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Career Consultant": {
+      "main": [
+        [
+          {
+            "node": "Parse Consultant Output Into JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HR filter": {
+      "main": [
+        [
+          {
+            "node": "Parse HR Output Into JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Career Consultant",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Job": {
+      "main": [
+        [
+          {
+            "node": "Career Consultant",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Job Apply": {
+      "main": [
+        [
+          {
+            "node": "Parse Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Apply": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Resume Unchanged": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Job Links": {
+      "main": [
+        [
+          {
+            "node": "Process Single Resume",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Job Apply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Consultant Output Into JSON": {
+      "main": [
+        [
+          {
+            "node": "HR filter",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Parse HR Output Into JSON": {
+      "main": [
+        [
+          {
+            "node": "Should Apply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "e2940200-7e2e-4f16-a690-95a8f1ac7cc9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e42fd098ad06dede7a9a7139e7a38fea8433e7fb69bca7dcae7f6fa9ba66c3fc"
+  },
+  "nodeGroups": [],
+  "id": "hh_ru_workflow_01",
+  "tags": []
+}

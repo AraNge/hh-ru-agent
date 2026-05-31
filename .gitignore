@@ -1,0 +1,5 @@
+.venv
+venv
+/data
+.env
+hh_cookies.json

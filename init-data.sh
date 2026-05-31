@@ -1,0 +1,29 @@
+#!/bin/bash
+set -e
+
+psql -v ON_ERROR_STOP=1 \
+  --username "$POSTGRES_USER" \
+  --dbname "$POSTGRES_DB" <<-EOSQL
+
+CREATE USER "$POSTGRES_NON_ROOT_USER"
+WITH PASSWORD '$POSTGRES_NON_ROOT_PASSWORD';
+
+GRANT ALL PRIVILEGES ON DATABASE "$POSTGRES_DB"
+TO "$POSTGRES_NON_ROOT_USER";
+
+GRANT ALL ON SCHEMA public
+TO "$POSTGRES_NON_ROOT_USER";
+
+CREATE TABLE IF NOT EXISTS resume_search_filters (
+    resume_id TEXT PRIMARY KEY,
+    resume_hash TEXT NOT NULL,
+    job_titles JSONB,
+    keywords JSONB,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+GRANT ALL PRIVILEGES ON TABLE resume_search_filters
+TO "$POSTGRES_NON_ROOT_USER";
+
+EOSQL

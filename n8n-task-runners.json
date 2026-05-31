@@ -1,0 +1,26 @@
+{
+  "task-runners": [
+    {
+      "runner-type": "python",
+      "health-check-server-port": "5682",
+      "workdir": "/app",
+      "command": "/opt/runners/task-runner-python/.venv/bin/python",
+      "args": ["-m", "src.main"],
+      "env-overrides": {
+        "PYTHONPATH": "/app:/app/scripts:/opt/runners/task-runner-python",
+        "N8N_RUNNERS_STDLIB_ALLOW": "*",
+        "N8N_RUNNERS_EXTERNAL_ALLOW": "requests,bs4,lxml,selenium,get_profile_data,get_job_listings,get_job_data,apply_to_job"
+      }
+    },
+    {
+      "runner-type": "javascript",
+      "health-check-server-port": "5681",
+      "workdir": "/app",
+      "command": "node",
+      "args": ["/usr/local/lib/node_modules/n8n/dist/task-runners/js-task-runner.js"],
+      "env-overrides": {
+        "NODE_FUNCTION_ALLOW_EXTERNAL": "*"
+      }
+    }
+  ]
+}

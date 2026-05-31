@@ -1,0 +1,61 @@
+FROM alpine:latest AS builder
+
+RUN apk add --no-cache \
+    chromium \
+    chromium-chromedriver \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    gcompat \
+    libstdc++ \
+    mesa-gl \
+    mesa-egl \
+    libx11 \
+    libxcb \
+    libxcomposite \
+    libxdamage \
+    libxext \
+    libxfixes \
+    libxrandr \
+    libxrender \
+    libxi \
+    libxtst \
+    at-spi2-core \
+    cups-libs \
+    dbus-libs \
+    libdrm \
+    gtk+3.0 \
+    pango \
+    cairo \
+    alsa-lib
+
+
+FROM docker.io/n8nio/runners:2.23.1
+
+USER root
+ENV PIP_ROOT_USER_ACTION=ignore
+
+COPY --from=builder /usr/lib /usr/lib
+COPY --from=builder /usr/bin/chromium /usr/bin/chromium
+COPY --from=builder /usr/bin/chromedriver /usr/bin/chromedriver
+COPY --from=builder /usr/share/fonts /usr/share/fonts
+COPY --from=builder /lib /lib
+COPY --from=builder /usr/share /usr/share
+
+RUN ldconfig /usr/lib /lib
+
+WORKDIR /app
+RUN chown -R runner:runner /app
+
+
+COPY ./requirements.txt /requirements.txt
+RUN cd /opt/runners/task-runner-python && \
+    uv pip install --no-cache-dir -r /requirements.txt
+
+COPY --chown=runner:runner ./scripts /app/scripts
+
+USER runner
+
+ENV PYTHONPATH="/app:/app/scripts:/opt/runners/task-runner-python"

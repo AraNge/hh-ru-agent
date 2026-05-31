@@ -1,0 +1,9 @@
+FROM docker.io/n8nio/n8n:2.23.1
+
+USER root
+
+WORKDIR /home/node/app
+
+COPY --chown=node:node ./hh-ru-n8n-workflow.json ./hh-ru-n8n-workflow.json
+
+USER node
